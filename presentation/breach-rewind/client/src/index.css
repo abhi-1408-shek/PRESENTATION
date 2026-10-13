@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   BREACH//REWIND — Global Styles
+   ============================================================ */
+
+:root {
+  --void: #060913;
+  --void-50: #0a0f1e;
+  --void-100: #0F172A;
+  --void-200: #1a2340;
+  --void-300: #243050;
+  --cyber-cyan: #00F2FE;
+  --cyber-blue: #00B4D8;
+  --cyber-purple: #9D4EDD;
+  --cyber-amber: #F59E0B;
+  --cyber-red: #FF2A6D;
+  --cyber-green: #10B981;
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-bg: rgba(15, 23, 42, 0.6);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--void);
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--void-50);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--void-300);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyber-cyan);
+}
+
+/* Glass panel component */
+@layer components {
+  .glass-panel {
+    @apply rounded-xl border border-white/[0.06] backdrop-blur-sm;
+    background: var(--glass-bg);
+  }
+
+  .glass-panel-strong {
+    @apply rounded-xl border border-white/[0.1] backdrop-blur-md;
+    background: rgba(15, 23, 42, 0.8);
+  }
+
+  .cyber-text {
+    @apply font-display tracking-wider;
+    text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+  }
+
+  .cyber-glow {
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.15),
+                inset 0 0 15px rgba(0, 242, 254, 0.05);
+  }
+
+  .alert-glow {
+    box-shadow: 0 0 20px rgba(255, 42, 109, 0.3),
+                inset 0 0 10px rgba(255, 42, 109, 0.1);
+  }
+
+  .amber-glow {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.2),
+                inset 0 0 10px rgba(245, 158, 11, 0.05);
+  }
+
+  .btn-cyber {
+    @apply px-4 py-2 rounded-lg font-display text-sm font-medium tracking-wider
+           border border-cyber-cyan/30 bg-cyber-cyan/10 text-cyber-cyan
+           transition-all duration-200 cursor-pointer
+           hover:bg-cyber-cyan/20 hover:border-cyber-cyan/50 hover:shadow-cyber
+           active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-alert {
+    @apply px-4 py-2 rounded-lg font-display text-sm font-medium tracking-wider
+           border border-cyber-red/30 bg-cyber-red/10 text-cyber-red
+           transition-all duration-200 cursor-pointer
+           hover:bg-cyber-red/20 hover:border-cyber-red/50 hover:shadow-alert
+           active:scale-95;
+  }
+
+  .btn-amber {
+    @apply px-4 py-2 rounded-lg font-display text-sm font-medium tracking-wider
+           border border-cyber-amber/30 bg-cyber-amber/10 text-cyber-amber
+           transition-all duration-200 cursor-pointer
+           hover:bg-cyber-amber/20 hover:border-cyber-amber/50 hover:shadow-amber
+           active:scale-95;
+  }
+
+  .label-mono {
+    @apply font-mono text-xs uppercase tracking-[0.2em] text-slate-400;
+  }
+
+  .value-display {
+    @apply font-mono text-2xl font-bold tabular-nums;
+  }
+}
+
+/* Grid background pattern */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 242, 254, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 242, 254, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Fullscreen mode */
+.fullscreen-mode {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: var(--void);
+}

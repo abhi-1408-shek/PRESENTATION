@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Neuromorphic Security Estimator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="glow-orb" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="brand">
+        <span class="brand-kicker">BREACH//REWIND · LIVE SEMINAR</span>
+        <h1>Admin Training Panel</h1>
+        <p>
+          Train the master profile. Only you can train this baseline.
+          <span class="eq">V[t] = β · V[t−1] + I[t]</span>
+        </p>
+      </div>
+      <div class="header-meta">
+        <div class="chip">
+          <span class="dot"></span>
+          LIF β = {{ beta }}
+        </div>
+        <div class="chip">
+          V<sub>th</sub> = {{ v_th }}
+        </div>
+        <div class="chip" id="enrol-chip">ENROL 0/{{ required_samples }}</div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel console">
+        <div class="panel-head">
+          <h2>Admin Training</h2>
+          <span class="mode-pill" id="mode-pill">TRAIN</span>
+        </div>
+
+        <div class="admin-auth">
+          <label class="field-label" for="admin-token">Admin Token</label>
+          <input
+            type="password"
+            id="admin-token"
+            class="field-input"
+            placeholder="Enter admin token"
+            value="{{ admin_token }}"
+          />
+        </div>
+
+        <p class="prompt-label">Target phrase</p>
+        <div class="target" id="target-phrase">{{ target_phrase }}</div>
+
+        <label class="field-label" for="typing-input">Type here — paste is disabled</label>
+        <textarea
+          id="typing-input"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          rows="3"
+          placeholder="Begin typing the target phrase…"
+        ></textarea>
+        <div class="progress-row">
+          <div class="meter"><span id="phrase-meter"></span></div>
+          <span class="mono" id="match-readout">0%</span>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn primary" id="btn-submit">Capture Sample</button>
+          <button type="button" class="btn ghost" id="btn-clear">Clear Buffer</button>
+          <button type="button" class="btn ghost" id="btn-reset">Reset Profile</button>
+        </div>
+        <p class="hint" id="status-hint">
+          Enrol {{ required_samples }} genuine samples to lock the IsolationForest baseline.
+          After training, audience can try to authenticate at the main page.
+        </p>
+      </section>
+
+      <section class="panel dash">
+        <div class="panel-head">
+          <h2>Input Spikes</h2>
+          <span class="mono subtle" id="spike-count">0 transitions</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="spike-chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel dash">
+        <div class="panel-head">
+          <h2>Membrane Potential V(t)</h2>
+          <span class="mono subtle">V<sub>th</sub> threshold overlay</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="membrane-chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel policy" id="policy-panel" data-state="idle">
+        <div class="panel-head">
+          <h2>Training Progress</h2>
+          <span class="mono" id="policy-code">IDLE</span>
+        </div>
+        <div class="policy-body">
+          <div class="v-gauge">
+            <div class="v-fill" id="v-fill"></div>
+            <div class="v-warn"></div>
+            <div class="v-th"></div>
+          </div>
+          <div>
+            <p class="policy-msg" id="policy-msg">Awaiting training samples.</p>
+            <dl class="readouts">
+              <div>
+                <dt>Peak V(t)</dt>
+                <dd class="mono" id="peak-v">0.000</dd>
+              </div>
+              <div>
+                <dt>Spikes</dt>
+                <dd class="mono" id="lif-spikes">0</dd>
+              </div>
+              <div>
+                <dt>Mean dwell</dt>
+                <dd class="mono" id="mean-dwell">— ms</dd>
+              </div>
+              <div>
+                <dt>Mean flight</dt>
+                <dd class="mono" id="mean-flight">— ms</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel efficiency">
+        <div class="panel-head">
+          <h2>Admin IP Information</h2>
+        </div>
+        <div class="eff-grid">
+          <div>
+            <span class="eff-label">Your IP</span>
+            <span class="eff-value mono" id="client-ip">—</span>
+          </div>
+          <div>
+            <span class="eff-label">Admin IP (locked)</span>
+            <span class="eff-value mono" id="admin-ip">Not set</span>
+          </div>
+          <div>
+            <span class="eff-label">IP Match</span>
+            <span class="eff-value mono" id="ip-match">—</span>
+          </div>
+        </div>
+        <p class="eff-note">
+          Your IP is locked during training. Audience from different IPs will be flagged even on your device.
+        </p>
+      </section>
+
+      <section class="panel efficiency">
+        <div class="panel-head">
+          <h2>Theoretical Neuromorphic Efficiency</h2>
+        </div>
+        <div class="eff-grid">
+          <div>
+            <span class="eff-label">Compute Sparsity</span>
+            <span class="eff-value mono" id="sparsity">92.4%</span>
+          </div>
+          <div>
+            <span class="eff-label">Active Spikes</span>
+            <span class="eff-value mono" id="active-spikes">0</span>
+          </div>
+          <div>
+            <span class="eff-label">Event-driven ops</span>
+            <span class="eff-value mono" id="event-ops">idle</span>
+          </div>
+        </div>
+        <p class="eff-note">
+          Training mode: collecting keystroke dynamics to build the IsolationForest baseline.
+        </p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      Admin training panel · IsolationForest baseline · LIF estimator
+    </footer>
+
+    <script>
+      window.NSE_CONFIG = {
+        targetPhrase: {{ target_phrase | tojson }},
+        requiredSamples: {{ required_samples }},
+        vTh: {{ v_th }},
+        beta: {{ beta }},
+        mode: 'train',
+        isAdmin: true,
+      };
+    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
