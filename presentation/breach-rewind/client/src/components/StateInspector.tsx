@@ -351,7 +351,7 @@ export const StateInspector: React.FC<Props> = ({
 
               <div className="flex items-center justify-between bg-void-100 p-3 rounded-lg border border-white/[0.06] text-xs font-mono">
                 <span className="text-slate-400">Timestamp: <strong className="text-cyber-cyan">{formatTime(currentTime)}</strong></span>
-                <span className="text-slate-400">Memory Accumulation: <strong className={memoryEnabled ? 'text-cyber-green' : 'text-cyber-amber'}>{memoryEnabled ? 'ACTIVE (τ_m = 80ms)' : 'ABLATED (M=0)'}</strong></span>
+                <span className="text-slate-400">Memory Accumulation: <strong className={memoryEnabled ? 'text-cyber-green' : 'text-cyber-amber'}>{memoryEnabled ? `ACTIVE (τ_m = ${params.tau_m}s)` : 'ABLATED (M=0)'}</strong></span>
               </div>
 
               {activeEvent && (

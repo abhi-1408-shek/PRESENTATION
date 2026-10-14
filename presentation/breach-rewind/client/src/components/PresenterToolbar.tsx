@@ -10,7 +10,6 @@ import {
   RotateCcw,
   Brain,
   GitCompare,
-  Users,
   Maximize,
   Minimize,
   Volume2,
@@ -44,7 +43,6 @@ interface Props {
   onToggleFullscreen: () => void;
   onToggleMute: () => void;
   onSelectScenario: (id: string) => void;
-  onInviteAudience: () => void;
 }
 
 export const PresenterToolbar: React.FC<Props> = ({
@@ -66,7 +64,6 @@ export const PresenterToolbar: React.FC<Props> = ({
   onToggleFullscreen,
   onToggleMute,
   onSelectScenario,
-  onInviteAudience,
 }) => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
@@ -220,15 +217,6 @@ export const PresenterToolbar: React.FC<Props> = ({
             )}
           </AnimatePresence>
         </div>
-
-        {/* Audience */}
-        <button
-          onClick={onInviteAudience}
-          className="btn-cyber flex items-center gap-2"
-        >
-          <Users className="w-4 h-4" />
-          <span className="hidden xl:inline">AUDIENCE</span>
-        </button>
 
         <div className="flex-1" />
 
