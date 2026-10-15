@@ -284,8 +284,12 @@
 
     if (finalStatus === "blocked") {
       let msg = "INTRUDER INTERCEPTED";
-      if (authReason === "ip_match_bad_typing") {
-        msg = "Same device but different typing pattern detected";
+      if (authReason === "ip_mismatch") {
+        msg = "ACCESS DENIED — network does not match the enrolled device.";
+      } else if (authReason === "behavior_mismatch") {
+        msg = "ACCESS DENIED — typing pattern does not match the enrolled profile.";
+      } else if (authReason === "phrase_mismatch") {
+        msg = "ACCESS DENIED — enter the exact enrolled phrase.";
       }
       setPolicy("blocked", msg, payload.peak || peak, payload.spike_count || spikeCount);
       freezeInput(true);
@@ -298,9 +302,7 @@
       );
     } else {
       let msg = "Access Granted — typing rhythm matches enrolled identity.";
-      if (authReason === "admin_token") {
-        msg = "Access Granted — authenticated via admin token (typing still analyzed).";
-      } else if (authReason === "ip_and_typing") {
+      if (authReason === "ip_and_typing") {
         msg = "Access Granted — IP and typing pattern match.";
       }
       setPolicy(
@@ -311,18 +313,10 @@
       );
     }
 
-    // Show IP information for admin/demo purposes
-    if (payload.client_ip && payload.admin_ip) {
-      const clientIpEl = document.getElementById("client-ip");
-      const adminIpEl = document.getElementById("admin-ip");
-      const ipMatchEl = document.getElementById("ip-match");
-
-      if (clientIpEl) clientIpEl.textContent = payload.client_ip;
-      if (adminIpEl) adminIpEl.textContent = payload.admin_ip;
-      if (ipMatchEl) {
-        ipMatchEl.textContent = payload.ip_matches ? "YES" : "NO";
-        ipMatchEl.style.color = payload.ip_matches ? "#3fb950" : "#ff7b72";
-      }
+    const ipMatchEl = document.getElementById("ip-match");
+    if (ipMatchEl) {
+      ipMatchEl.textContent = payload.ip_matches ? "YES" : "NO";
+      ipMatchEl.style.color = payload.ip_matches ? "#3fb950" : "#ff7b72";
     }
   }
 
@@ -380,7 +374,17 @@
   if (btnReset) {
     btnReset.addEventListener("click", async () => {
       animToken += 1;
-      await fetch("/reset", { method: "POST" });
+      const adminToken = adminTokenInput ? adminTokenInput.value.trim() : "";
+      const response = await fetch("/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_token: adminToken }),
+      });
+      const result = await response.json();
+      if (!result.ok) {
+        setHint(result.error || "Could not reset the profile.");
+        return;
+      }
       trained = 0;
       ready = false;
       freezeInput(false);
@@ -446,13 +450,6 @@
           setHint("Baseline locked. Audience can now try to authenticate at the main page.");
           setPolicy("idle", "IsolationForest profile ready. Training complete.", 0, 0);
 
-          // Display admin IP if available
-          if (data.fit && data.fit.admin_ip) {
-            const adminIpEl = document.getElementById("admin-ip");
-            if (adminIpEl) {
-              adminIpEl.textContent = data.fit.admin_ip;
-            }
-          }
         } else {
           setHint(`Sample ${trained}/${REQUIRED} stored. Type the phrase again with the same genuine rhythm.`);
         }
@@ -461,11 +458,6 @@
         document.getElementById("sparsity").textContent = `${sparsity.toFixed(1)}%`;
         document.getElementById("active-spikes").textContent = String(data.active_spikes ?? 0);
         document.getElementById("event-ops").textContent = `${(data.voltages || []).length} LIF steps`;
-
-        // If admin token was used, show different message
-        if (data.is_admin) {
-          setHint("Admin override: authenticated via token (typing pattern still analyzed).");
-        }
 
         await animateMembrane(data);
         if (data.status !== "blocked") {
@@ -481,20 +473,26 @@
 
   btnSubmit.addEventListener("click", submit);
 
-  fetch("/status")
-    .then((r) => r.json())
-    .then((s) => {
+  function refreshStatus() {
+    return fetch("/status")
+      .then((r) => r.json())
+      .then((s) => {
       trained = s.trained || 0;
       ready = Boolean(s.ready);
       setModeUI();
 
-      // Display admin IP
+      // Do not expose the enrolled IP to audience participants.
       const adminIpEl = document.getElementById("admin-ip");
       if (adminIpEl) {
-        adminIpEl.textContent = s.admin_ip || "Not set";
+        adminIpEl.textContent = s.admin_ip_enrolled ? "Protected" : "Not set";
       }
-    })
-    .catch(() => setModeUI());
+      })
+      .catch(() => setModeUI());
+  }
+
+  refreshStatus();
+  // An already-open audience page reflects completed admin enrollment quickly.
+  window.setInterval(refreshStatus, 5000);
 
   updatePhraseMeter();
   setPolicy("idle", "Awaiting synaptic current.", 0, 0);

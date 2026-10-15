@@ -45,17 +45,6 @@
           <span class="mode-pill" id="mode-pill">VERIFY</span>
         </div>
 
-        <div class="admin-auth">
-          <label class="field-label" for="admin-token">Admin Token (optional)</label>
-          <input
-            type="password"
-            id="admin-token"
-            class="field-input"
-            placeholder="Enter admin token to override"
-          />
-          <p class="hint-mini">Admins can authenticate from any device with correct token</p>
-        </div>
-
         <p class="prompt-label">Target phrase</p>
         <div class="target" id="target-phrase">{{ target_phrase }}</div>
 
@@ -157,7 +146,7 @@
           </div>
         </div>
         <p class="eff-note">
-          IP is tracked. Even on the same device, different typing patterns will be flagged.
+          Access requires the enrolled network and typing behavior. The enrolled IP is protected.
         </p>
       </section>
 

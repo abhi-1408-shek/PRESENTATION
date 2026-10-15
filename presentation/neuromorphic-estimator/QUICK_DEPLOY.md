@@ -79,7 +79,7 @@ The site is fully responsive and optimized for mobile!
 
 - **Change the admin token** to something unique before deployment
 - Don't share the admin token with the audience
-- The admin token allows override from any device
+- The admin token protects training and reset; it does not bypass audience verification
 - For seminars, a simple token like `seminar2024` is fine
 - For production, use a password manager to generate a strong token
 
@@ -95,13 +95,13 @@ Before your seminar:
 - [ ] Test the audience page from your phone
 - [ ] Generate QR code
 - [ ] Add QR code to slides
-- [ ] Test admin override on your phone
+- [ ] Create PostgreSQL and configure `DATABASE_URL` and `IP_HMAC_KEY`
 
 During seminar:
 - [ ] Show QR code on slide
 - [ ] Have audience scan and try
 - [ ] Demonstrate LIF neuron visualization
-- [ ] Show admin override from phone
+- [ ] Show different-network denial and same-network behavioral verification
 
 ---
 

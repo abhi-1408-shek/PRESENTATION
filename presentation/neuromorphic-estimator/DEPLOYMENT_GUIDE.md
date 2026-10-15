@@ -131,7 +131,8 @@ Before your seminar:
 - [ ] Test the audience page from a different device
 - [ ] Generate QR code for the audience URL
 - [ ] Add QR code to your presentation slides
-- [ ] Test admin override by entering the token on audience page
+- [ ] Create the PostgreSQL database and configure `DATABASE_URL` and `IP_HMAC_KEY`
+- [ ] Test audience denial from a different network and behavioral denial on the enrolled network
 
 During your seminar:
 
@@ -139,7 +140,7 @@ During your seminar:
 2. Explain the concept of neuromorphic authentication
 3. Have them scan and try to authenticate
 4. Show how the LIF neuron detects anomalies
-5. Demonstrate admin override from your phone/laptop
+5. Demonstrate that the audience page requires both the enrolled network and matching behavior
 
 After your seminar:
 
@@ -163,9 +164,10 @@ After your seminar:
 - Check that the baseline is locked (shows "BASELINE LOCKED")
 - Verify the audience is typing the exact target phrase
 
-**Admin override not working:**
-- Double-check the admin token matches exactly
-- Ensure there are no extra spaces in the token field
+**Audience authentication is denied:**
+- Confirm the phone is on the enrolled network when testing an allowed authentication
+- Confirm the exact target phrase was typed manually
+- Different networks are intentionally denied before behavioral access can be granted
 
 ## Security Reminder
 

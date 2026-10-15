@@ -14,15 +14,18 @@ from __future__ import annotations
 import os
 import socket
 import threading
-import time
-import uuid
-from collections import deque
+import hashlib
+import hmac
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
 import numpy as np
 from flask import Flask, jsonify, render_template, request
 from sklearn.ensemble import IsolationForest
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+from database import ProfileStore
 
 # Load environment variables from .env file if present
 try:
@@ -41,10 +44,19 @@ except ImportError:
         pass
 
 app = Flask(__name__)
+TRUSTED_PROXY_HOPS = int(os.environ.get("TRUSTED_PROXY_HOPS", "1"))
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=TRUSTED_PROXY_HOPS,
+    x_proto=TRUSTED_PROXY_HOPS,
+)
 STATE_LOCK = threading.Lock()
 PORT = int(os.environ.get("PORT", "5055"))
 HOST = os.environ.get("HOST", "0.0.0.0")
-ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "admin123")  # Change this for production!
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
+IP_HMAC_KEY = os.environ.get("IP_HMAC_KEY", "")
+STORE = ProfileStore()
+STORE.initialize()
 
 # ---------------------------------------------------------------------------
 # LIF / policy constants
@@ -87,9 +99,9 @@ _profile: dict[str, Any] = {
     "score_sigma": 1.0,
     "feat_mean": None,
     "feat_std": None,
-    "admin_ip": None,  # IP address of admin during training
+    "admin_ip_hmac": None,
+    "version": -1,
 }
-_attempts: deque[dict[str, Any]] = deque(maxlen=80)
 _public_base = (os.environ.get("PUBLIC_BASE_URL") or "").rstrip("/")
 
 
@@ -100,8 +112,43 @@ def reset_profile() -> None:
     _profile["score_sigma"] = 1.0
     _profile["feat_mean"] = None
     _profile["feat_std"] = None
-    _profile["admin_ip"] = None
-    _attempts.clear()
+    _profile["admin_ip_hmac"] = None
+    _profile["version"] = -1
+
+
+def admin_token_matches(candidate: str) -> bool:
+    return bool(ADMIN_TOKEN) and hmac.compare_digest(candidate, ADMIN_TOKEN)
+
+
+def current_ip_hmac() -> str:
+    if not IP_HMAC_KEY:
+        raise RuntimeError("IP_HMAC_KEY is not configured")
+    client_ip = request.remote_addr or "unknown"
+    return hmac.new(
+        IP_HMAC_KEY.encode("utf-8"),
+        client_ip.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def sync_profile_from_store() -> None:
+    """Load the newest shared profile before every status or auth action."""
+    persisted = STORE.load()
+    if persisted is None:
+        if _profile["version"] != -1:
+            reset_profile()
+        return
+
+    if persisted["version"] == _profile["version"]:
+        return
+
+    samples = [np.asarray(sample, dtype=float) for sample in persisted["samples"]]
+    reset_profile()
+    _profile["samples"] = samples
+    _profile["admin_ip_hmac"] = persisted["admin_ip_hmac"]
+    _profile["version"] = persisted["version"]
+    if len(samples) >= REQUIRED_TRAIN_SAMPLES:
+        fit_profile()
 
 
 def lan_ip() -> str:
@@ -246,7 +293,7 @@ def validate_sample(dwells: np.ndarray, flights: np.ndarray) -> str | None:
 # ---------------------------------------------------------------------------
 # IsolationForest enrolment
 # ---------------------------------------------------------------------------
-def fit_profile(admin_ip: str | None = None) -> dict[str, Any]:
+def fit_profile() -> dict[str, Any]:
     if len(_profile["samples"]) < REQUIRED_TRAIN_SAMPLES:
         raise RuntimeError("Not enough training samples")
 
@@ -277,13 +324,10 @@ def fit_profile(admin_ip: str | None = None) -> dict[str, Any]:
     _profile["score_sigma"] = sigma
     _profile["feat_mean"] = feat_mean
     _profile["feat_std"] = feat_std
-    _profile["admin_ip"] = admin_ip
-
     return {
         "n_feature_rows": int(n_samples),
         "score_mu": mu,
         "score_sigma": sigma,
-        "admin_ip": admin_ip,
     }
     return {
         "n_feature_rows": int(n_samples),
@@ -408,25 +452,32 @@ def admin():
         required_samples=REQUIRED_TRAIN_SAMPLES,
         v_th=V_TH,
         beta=BETA,
-        admin_token=ADMIN_TOKEN,
     )
 
 
 @app.route("/reset", methods=["POST"])
 def reset():
-    reset_profile()
+    payload = request.get_json(silent=True) or {}
+    if not admin_token_matches(str(payload.get("admin_token", "")).strip()):
+        return jsonify({"ok": False, "error": "Admin authorization is required."}), 403
+    with STATE_LOCK:
+        STORE.clear()
+        reset_profile()
     return jsonify({"ok": True, "trained": 0, "required": REQUIRED_TRAIN_SAMPLES})
 
 
 @app.route("/status", methods=["GET"])
 def status():
+    with STATE_LOCK:
+        sync_profile_from_store()
     return jsonify(
         {
             "trained": len(_profile["samples"]),
             "required": REQUIRED_TRAIN_SAMPLES,
             "ready": _profile["model"] is not None,
             "target_phrase": TARGET_PHRASE,
-            "admin_ip": _profile["admin_ip"],
+            "admin_ip_enrolled": _profile["admin_ip_hmac"] is not None,
+            "profile_version": _profile["version"],
         }
     )
 
@@ -439,18 +490,15 @@ def process_typing():
     typed = str(payload.get("text", "")).rstrip("\n")
     admin_token = str(payload.get("admin_token", "")).strip()
 
-    # Get client IP (handle proxies)
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    if client_ip and "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
-
     if mode not in ("train", "verify"):
         return jsonify({"ok": False, "error": "mode must be 'train' or 'verify'."}), 400
     if not events:
         return jsonify({"ok": False, "error": "No keystroke events received."}), 400
+    if not IP_HMAC_KEY:
+        return jsonify({"ok": False, "error": "Server IP protection is not configured."}), 503
 
     # Training requires admin token
-    if mode == "train" and admin_token != ADMIN_TOKEN:
+    if mode == "train" and not admin_token_matches(admin_token):
         return jsonify({"ok": False, "error": "Invalid admin token. Training requires admin authorization."}), 403
 
     dwells, flights = extract_dwell_flight(events)
@@ -472,29 +520,43 @@ def process_typing():
     spikes_in = input_spike_series(dwells, flights)
 
     if mode == "train":
-        if _profile["model"] is not None:
-            return jsonify(
-                {
-                    "ok": False,
-                    "error": "Baseline already locked. Reset the estimator to re-enrol.",
-                }
-            ), 409
-        if not phrase_ok:
-            return jsonify(
-                {
-                    "ok": False,
-                    "error": "Training requires the exact target phrase.",
-                    "target": TARGET_PHRASE,
-                }
-            ), 400
+        with STATE_LOCK:
+            sync_profile_from_store()
+            if _profile["model"] is not None:
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": "Baseline already locked. Reset the estimator to re-enrol.",
+                    }
+                ), 409
+            if not phrase_ok:
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": "Training requires the exact target phrase.",
+                        "target": TARGET_PHRASE,
+                    }
+                ), 400
 
-        _profile["samples"].append(features)
-        trained = len(_profile["samples"])
-        ready = False
-        fit_info: dict[str, Any] = {}
-        if trained >= REQUIRED_TRAIN_SAMPLES:
-            fit_info = fit_profile(admin_ip=client_ip)
-            ready = True
+            ip_hmac = current_ip_hmac()
+            enrolled_ip_hmac = _profile["admin_ip_hmac"]
+            if enrolled_ip_hmac and not hmac.compare_digest(ip_hmac, enrolled_ip_hmac):
+                return jsonify(
+                    {"ok": False, "error": "Continue enrollment from the original admin network."}
+                ), 403
+
+            _profile["samples"].append(features)
+            _profile["admin_ip_hmac"] = ip_hmac
+            _profile["version"] += 1
+            trained = len(_profile["samples"])
+            ready = trained >= REQUIRED_TRAIN_SAMPLES
+            fit_info: dict[str, Any] = fit_profile() if ready else {}
+            STORE.save(
+                [sample.tolist() for sample in _profile["samples"]],
+                ip_hmac,
+                _profile["version"],
+                datetime.now(timezone.utc).isoformat() if ready else None,
+            )
 
         return jsonify(
             {
@@ -517,6 +579,8 @@ def process_typing():
         )
 
     # ----- verify -----
+    with STATE_LOCK:
+        sync_profile_from_store()
     if _profile["model"] is None:
         remaining = REQUIRED_TRAIN_SAMPLES - len(_profile["samples"])
         return jsonify(
@@ -534,28 +598,20 @@ def process_typing():
     currents, zscores = anomaly_currents(features)
     lif = simulate_lif(currents)
 
-    # IP and token checking
-    is_admin = admin_token == ADMIN_TOKEN
-    ip_matches = client_ip == _profile["admin_ip"]
-    admin_ip_display = _profile["admin_ip"] or "unknown"
-
-    # Final authentication decision:
-    # - If admin token is correct: authenticate (but still show LIF analysis)
-    # - If IP matches admin AND typing is good: authenticate
-    # - Otherwise: rely on LIF status
-    final_status = lif["status"]
-    auth_reason = "typing_pattern"
-
-    if is_admin:
-        final_status = "success"
-        auth_reason = "admin_token"
-    elif ip_matches and lif["status"] == "success":
+    enrolled_ip_hmac = _profile["admin_ip_hmac"] or ""
+    ip_matches = hmac.compare_digest(current_ip_hmac(), enrolled_ip_hmac)
+    if not phrase_ok:
+        final_status = "blocked"
+        auth_reason = "phrase_mismatch"
+    elif not ip_matches:
+        final_status = "blocked"
+        auth_reason = "ip_mismatch"
+    elif lif["status"] != "success":
+        final_status = "blocked"
+        auth_reason = "behavior_mismatch"
+    else:
         final_status = "success"
         auth_reason = "ip_and_typing"
-    elif ip_matches and lif["status"] != "success":
-        # Same IP but bad typing - still block, but note it's admin's device
-        auth_reason = "ip_match_bad_typing"
-        final_status = lif["status"]
 
     return jsonify(
         {
@@ -563,10 +619,7 @@ def process_typing():
             "mode": "verify",
             "phrase_ok": phrase_ok,
             "status": final_status,
-            "is_admin": is_admin,
             "ip_matches": ip_matches,
-            "client_ip": client_ip,
-            "admin_ip": admin_ip_display,
             "auth_reason": auth_reason,
             "lif_status": lif["status"],  # Original LIF status for display
             "voltages": lif["voltages"],

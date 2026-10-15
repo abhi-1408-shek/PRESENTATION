@@ -6,9 +6,9 @@ A live seminar demonstration of behavioral authentication using keystroke dynami
 
 - **Admin Training Panel** (`/admin`): Only the admin can train the master profile
 - **Audience Verification** (`/`): Audience attempts to authenticate against the trained profile
-- **Admin Override**: Admin can authenticate from any device using the admin token
-- **IP Tracking**: System tracks and displays IP addresses for additional security context
-- **Multi-factor Authentication**: Combines IP address, typing behavior, and admin token
+- **Protected Admin Training**: Admin token is required only to train or reset the profile
+- **Network + Behavior Verification**: Audience access requires the enrolled network and typing behavior
+- **Persistent Profile**: PostgreSQL stores the enrolled profile for immediate shared access
 - **Neuromorphic LIF Neuron**: Real-time visualization of membrane potential and spike events
 - **IsolationForest**: Anomaly detection for keystroke dynamics
 - **Mobile Optimized**: Fully responsive design for phones and tablets
@@ -29,15 +29,14 @@ A live seminar demonstration of behavioral authentication using keystroke dynami
 1. **Admin Training**: The presenter accesses `/admin` and types the target phrase 3 times to build a behavioral profile. The admin's IP address is locked during this phase.
 2. **Audience Challenge**: Audience scans a QR code to access the main page and tries to match the typing pattern
 3. **Multi-factor Authentication**:
-   - **IP Check**: Compares the user's IP with the admin's training IP
+   - **IP Check**: Requires the enrolled network address
    - **Behavioral Check**: The LIF neuron analyzes typing rhythm
-   - **Token Check**: Admin token can override other factors
+   - **Admin Token**: Protects training and profile reset only
 4. **Security Logic**:
-   - If admin token is correct → Authenticate (but still show LIF analysis)
    - If IP matches AND typing is good → Authenticate
-   - If IP matches but typing is bad → Block (same device, different user)
-   - If IP doesn't match → Rely on typing pattern analysis
-5. **Admin Override**: The presenter can authenticate from audience devices by entering the admin token
+   - If IP matches but typing is bad → Block
+   - If IP does not match → Block
+5. **Admin Test**: The presenter may use the audience page, but must pass the same IP and behavior checks.
 
 ## Quick Start for Seminar
 
@@ -111,6 +110,8 @@ This creates `qr_code.png` that you can add to slides.
    - `PORT`: 5055 (or let Render auto-assign)
    - `HOST`: 0.0.0.0
    - `ADMIN_TOKEN`: Your secret token (use a strong random string!)
+   - `DATABASE_URL`: Internal URL of your Render PostgreSQL database
+   - `IP_HMAC_KEY`: A separate long random secret
 
 5. **Deploy**: Render will automatically deploy on push
 
@@ -163,7 +164,7 @@ This creates `qr_code.png` that you can add to slides.
    - Train the profile on the admin panel (do this privately or on screen)
    - Ask audience to try to authenticate
    - Demonstrate how the LIF neuron detects anomalies
-   - Show admin override from an audience device
+   - Test the audience page from the enrolled network and a different network
 
 3. **After the seminar**:
    - You can reset the profile via the admin panel
@@ -172,7 +173,7 @@ This creates `qr_code.png` that you can add to slides.
 ## Security Notes
 
 - **Change the admin token** before production deployment
-- The app uses in-memory storage - data is lost on restart
+- Create the Render PostgreSQL database described in `PERSISTENCE_SETUP.md`
 - For production, consider:
   - Persistent database for profiles
   - Rate limiting
