@@ -4,7 +4,7 @@ A live seminar demonstration of behavioral authentication using keystroke dynami
 
 ## Features
 
-- **Admin Training Panel** (`/admin`): Only the admin can train the master profile
+- **Admin Training Panel** (`/admin`): Only the admin can train the admin profile
 - **Audience Verification** (`/`): Audience attempts to authenticate against the trained profile
 - **Protected Admin Training**: Admin token is required only to train or reset the profile
 - **Network + Behavior Verification**: Audience access requires the enrolled network and typing behavior
