@@ -123,7 +123,12 @@ def admin_token_matches(candidate: str) -> bool:
 def current_ip_hmac() -> str:
     if not IP_HMAC_KEY:
         raise RuntimeError("IP_HMAC_KEY is not configured")
-    client_ip = request.remote_addr or "unknown"
+    # Render's edge proxy appends its own address to X-Forwarded-For. The
+    # first value is the originating browser's public address and remains
+    # stable across requests from the same device/network.
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else request.remote_addr
+    client_ip = client_ip or "unknown"
     return hmac.new(
         IP_HMAC_KEY.encode("utf-8"),
         client_ip.encode("utf-8"),
